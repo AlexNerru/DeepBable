@@ -2,33 +2,8 @@ import vkapi
 import os
 import importlib
 from command_system import command_list
-import wget
 import requests
-import random
-
-def damerau_levenshtein_distance(s1, s2):
-   d = {}
-   lenstr1 = len(s1)
-   lenstr2 = len(s2)
-   for i in range(-1, lenstr1 + 1):
-       d[(i, -1)] = i + 1
-   for j in range(-1, lenstr2 + 1):
-       d[(-1, j)] = j + 1
-   for i in range(lenstr1):
-       for j in range(lenstr2):
-           if s1[i] == s2[j]:
-               cost = 0
-           else:
-               cost = 1
-           d[(i, j)] = min(
-               d[(i - 1, j)] + 1,  # deletion
-               d[(i, j - 1)] + 1,  # insertion
-               d[(i - 1, j - 1)] + cost,  # substitution
-           )
-           if i and j and s1[i] == s2[j - 1] and s1[i - 1] == s2[j]:
-               d[(i, j)] = min(d[(i, j)], d[i - 2, j - 2] + cost)  # transposition
-   return d[lenstr1 - 1, lenstr2 - 1]
-
+import ffmpeg
 
 def load_modules():
    files = os.listdir("mysite/commands")
@@ -36,43 +11,82 @@ def load_modules():
    for m in modules:
        importlib.import_module("commands." + m[0:-3])
 
+def speech_to_text(filepath):
+    import io
+    import os
 
-def get_answer(body):
-   message = "Прости, не понимаю тебя. Напиши 'помощь', чтобы узнать мои команды"
-   attachment = ''
-   distance = len(body)
-   command = None
-   key = ''
-   for c in command_list:
-       for k in c.keys:
-           d = damerau_levenshtein_distance(body, k)
-           if d < distance:
-               distance = d
-               command = c
-               key = k
-               if distance == 0:
-                   message, attachment = c.process()
-                   return message, attachment
-   if distance < len(body)*0.4:
-       message, attachment = command.process()
-       message = 'Я понял ваш запрос как "%s"\n\n' % key + message
-   return message, attachment
+    print(os.getcwd())
 
+    #process = os.popen('gcc -E /home/AlexNerru/mysite/DriveAPI-f33ebdfffc9e.json')
+    #preprocessed = process.read()
+    #process.close()
 
-def save_doc(doc):
+    from google.cloud import speech
+    from google.cloud.speech import enums
+    from google.cloud.speech import types
+
+    print("in stt")
+
+    client = speech.SpeechClient()
+    with io.open(filepath, 'rb') as audio_file:
+        content = audio_file.read()
+        audio = types.RecognitionAudio(content=content)
+
+    config = types.RecognitionConfig(
+        encoding=enums.RecognitionConfig.AudioEncoding.FLAC,
+        sample_rate_hertz=48000,
+        language_code='ru-RU')
+
+    print("before recognize")
+    # Detects speech in the audio file
+    try:
+        response = client.recognize(config, audio)
+    except:
+        print("was erroe")
+
+    for result in response.results:
+        print('Transcript: {}'.format(result.alternatives[0].transcript))
+    print("after recognize")
+
+def translate(doc):
+    save_doc(doc)
+    print("times in translate")
+    stream = ffmpeg.input(get_file_path(doc))
+    stream = ffmpeg.output(stream, get_file_path(doc, ".flac"))
+    ffmpeg.run(stream)
+    speech_to_text(get_file_path(doc, ".flac"))
+    print("after ffmpeg")
+
+def get_file_path(doc, ext = ".ogg"):
     file_path_small = os.path.join(os.path.dirname(os.path.realpath(__file__)),
                                    'files')
-
-    filename = str(doc['doc']['owner_id']) + "." + str(doc['doc']['id']) + ".mp3"
+    filename = str(doc['doc']['owner_id']) + "." + str(doc['doc']['id']) + ext
     file_path = os.path.join(file_path_small, str(filename))
-    print(file_path)
+    return file_path
+
+
+def get_answer(data):
+    message = "Sorry, I can't understand you. Please write 'help' to get info"
+    attachment = ''
+
+    if ('attachments' in data):
+        if (data['attachments'][0]['type'] == "doc"):
+            if (data['attachments'][0]['doc']['ext'] == "ogg"):
+                translate(data['attachments'][0])
+    #else:
+    #    for c in command_list:
+    #        if data['body'] in c.keys:
+    #            message, attachment = c.process()
+    return message, attachment
+
+def save_doc(doc):
+    file_path = get_file_path(doc)
     doc = requests.get(doc['doc']['url'])
     with open(file_path, "wb") as f:
         f.write(doc.content)
 
-def create_answer(data, token):
-    user_id = data['user_id']
-    doc = None
+
+def parse_mess_and_save(data):
     if ('fwd_messages' in data):
         messages = data['fwd_messages']
         for message in messages:
@@ -97,5 +111,10 @@ def create_answer(data, token):
                 save_doc(doc)
 
 
+def create_answer(data, token):
+    load_modules()
+    #parse_mess_and_save(data)
 
-
+    user_id = data['user_id']
+    message, attachment = get_answer(data)
+    vkapi.send_message(user_id, token, message, attachment)

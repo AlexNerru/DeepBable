@@ -1,11 +1,6 @@
-
-# A very simple Flask Hello World app for you to get started with...
-
 from flask import Flask, request, json
 from settings import *
 import messageHandler
-import wget
-import os
 
 app = Flask(__name__)
 
@@ -15,7 +10,6 @@ def hello_world():
 
 @app.route('/', methods=['POST'])
 def processing():
-
     data = json.loads(request.data)
     if 'type' not in data.keys():
         return 'not vk'
