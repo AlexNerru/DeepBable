@@ -17,9 +17,7 @@ def speech_to_text(filepath):
 
     print(os.getcwd())
 
-    #process = os.popen('gcc -E /home/AlexNerru/mysite/DriveAPI-f33ebdfffc9e.json')
-    #preprocessed = process.read()
-    #process.close()
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/home/AlexNerru/mysite/DriveAPI-f33ebdfffc9e.json"
 
     from google.cloud import speech
     from google.cloud.speech import enums
@@ -50,6 +48,7 @@ def speech_to_text(filepath):
 
 def translate(doc):
     save_doc(doc)
+    print(doc)
     print("times in translate")
     stream = ffmpeg.input(get_file_path(doc))
     stream = ffmpeg.output(stream, get_file_path(doc, ".flac"))
