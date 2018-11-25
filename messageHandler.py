@@ -5,8 +5,9 @@ from command_system import command_list
 import requests
 import ffmpeg
 import io
+import base64
 
-user_message_count = {}
+messages = []
 
 def load_modules():
     files = os.listdir("mysite/commands")
@@ -119,7 +120,7 @@ def test_to_speech(text, userid, docid):
 def get_answer(data, token):
     message = "Sorry, I can't understand you. Please write 'help' to get info"
     attachment = ''
-
+    title = ''
     if ('attachments' in data):
         if (data['attachments'][0]['type'] == "doc"):
             if (data['attachments'][0]['doc']['ext'] == "ogg"):
@@ -143,10 +144,12 @@ def get_answer(data, token):
                 print(file)
                 attachment = vkapi.save(file, token)[0]
 
-                requests.post("demourl", data = {'link' : attachment['url'], 'user_id' : data['user_id'],
-                                                 'voice_name': "{userid}/{docid}.ogg",
-                                                 'lang': 'en'})
+                # response = requests.post("http://167.99.253.72:8070/transfer", data = {'link' : attachment['url'],
+                #                                                                   'user_id' :
+                #     "misha", 'voice_name': "{userid}/{docid}.ogg",  'lang': 'en'})
 
+                print(response)
+                title = attachment['title']
                 document = 'doc%s_%s' % (str(attachment['owner_id']), str(attachment['id']))
                 print(document)
                 print(attachment)
@@ -157,7 +160,7 @@ def get_answer(data, token):
     #    for c in command_list:
     #        if data['body'] in c.keys:
     #            message, attachment = c.process()
-    return message, attachment
+    return message, attachment, title
 
 
 def save_doc(doc):
@@ -195,7 +198,9 @@ def parse_mess_and_save(data):
 def create_answer(data, token):
     load_modules()
     user_id = data['user_id']
-    message, attachment = get_answer(data, token)
+    message, attachment, title = get_answer(data, token)
     print(message)
     print(attachment)
-    vkapi.send_message(user_id, token, message, attachment)
+    if (title not in messages):
+        vkapi.send_message(user_id, token, message, attachment)
+        messages.append(title)
