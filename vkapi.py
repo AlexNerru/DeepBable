@@ -9,5 +9,7 @@ def send_message(user_id, token, message, attachment=""):
 
 def upload_voice(user_id, token, path):
     url = api.docs.getMessagesUploadServer(type='audio_message', access_token = token, peer_id = user_id)
-    print(url)
     return url
+
+def save(file, token):
+    return api.docs.save(file = file, access_token = token)

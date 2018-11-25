@@ -22,8 +22,6 @@ def speech_to_text(filepath):
     from google.cloud.speech import enums
     from google.cloud.speech import types
 
-    print("in stt")
-
     client = speech.SpeechClient()
     with io.open(filepath, 'rb') as audio_file:
         content = audio_file.read()
@@ -66,6 +64,14 @@ def translate(textes):
 def ogg_to_flac(doc):
     stream = ffmpeg.input(get_file_path(doc))
     stream = ffmpeg.output(stream, get_file_path(doc, ".flac"))
+    try:
+        ffmpeg.run(stream)
+    except:
+        pass
+
+def mp3_to_ogg(filepath, output):
+    stream = ffmpeg.input(filepath)
+    stream = ffmpeg.output(stream, output)
     try:
         ffmpeg.run(stream)
     except:
@@ -127,7 +133,26 @@ def get_answer(data, token):
                     message += trans
                 test_to_speech(message, data['user_id'], data['id'])
                 url = vkapi.upload_voice(data['user_id'], token, "")['upload_url']
+                userid = data['user_id']
+                docid = data['id']
+                mp3_to_ogg(f'./mysite/{userid}/{docid}.mp3', f'./mysite/{userid}/{docid}.ogg')
+                response = requests.post(url, files={
+                    'file':open(f'./mysite/{userid}/{docid}.ogg', 'rb')}).text
+                import json
+                file = json.loads(response)['file']
+                print(file)
+                attachment = vkapi.save(file, token)[0]
 
+                requests.post("demourl", data = {'link' : attachment['url'], 'user_id' : data['user_id'],
+                                                 'voice_name': "{userid}/{docid}.ogg",
+                                                 'lang': 'en'})
+
+                document = 'doc%s_%s' % (str(attachment['owner_id']), str(attachment['id']))
+                print(document)
+                print(attachment)
+                attachment = document
+
+    message = message
     # else:
     #    for c in command_list:
     #        if data['body'] in c.keys:
@@ -171,4 +196,6 @@ def create_answer(data, token):
     load_modules()
     user_id = data['user_id']
     message, attachment = get_answer(data, token)
+    print(message)
+    print(attachment)
     vkapi.send_message(user_id, token, message, attachment)
